@@ -16,7 +16,7 @@ RULES:
 1. **Grounding**: You are strictly grounded in the original source pixels. Do NOT add new objects (trees, people, buildings, etc.) that are not present in the source. Additionally, do NOT remove any elements from the source, unless they are clearly defects that do not belong in the original scene.
 2. **Fidelity**: Preserve the original facial expressions and identity of subjects. Do NOT "beautify" or alter features in a way that changes the person's identity.
 3. **Background**: Preserve background fidelity. Overexposed light sources (like windows) must remain as light sources. Do not "fill in" missing details with invented scenery.
-4. **Colorization**: If the image is monochrome, colorize it realistically, respecting historical accuracy where possible.
+4. **Colorization**: If the image is monochrome, colorize it realistically, respecting historical accuracy where possible. 
 5. **Upscaling**: Output a high-fidelity image.
 
 {{role "user"}}

@@ -26,6 +26,24 @@ func main() {
 	contentType := flag.String("contentType", "image/jpeg", "content type of the image (default: image/jpeg)")
 	flag.Parse()
 
+	var urls []string
+	if *urlFlag != "" {
+		urls = append(urls, *urlFlag)
+	} else {
+		// Intentar leer el fichero si no se pasó la flag --url
+		fileData, err := os.ReadFile("imagenes.txt")
+		if err != nil {
+			log.Fatalf("No se proporcionó --url y no se pudo leer imagenes.txt: %v", err)
+		}
+		// Dividir por líneas y filtrar líneas vacías
+		lines := strings.Split(string(fileData), "\n")
+		for _, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if trimmed != "" {
+				urls = append(urls, trimmed)
+			}
+		}
+	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
@@ -33,20 +51,15 @@ func main() {
 	g := genkit.Init(ctx,
 		genkit.WithPlugins(&googlegenai.VertexAI{}),
 	)
-
-	// Input schema for the glowUp flow
 	type Input struct {
-		URL         string `json:"url,omitempty"`
-		ContentType string `json:"contentType,omitempty"`
+		URL         string `json:"url"`
+		ContentType string `json:"contentType"`
 	}
-
 	glowup := genkit.DefineFlow(g, "glowUp", func(ctx context.Context, input Input) (string, error) {
-		// 1. Retrieve prompt
 		prompt := genkit.LookupPrompt(g, "glowup")
 		if prompt == nil {
 			return "", errors.New("prompt 'glowup' not found")
 		}
-
 		resp, err := prompt.Execute(ctx, ai.WithInput(input))
 		if err != nil {
 			return "", fmt.Errorf("generation failed: %w", err)
@@ -54,39 +67,40 @@ func main() {
 
 		return resp.Media(), nil
 	})
+	for _, uStr := range urls { // Cambiado a 'uStr' para evitar conflictos
+		uStr = strings.TrimSpace(uStr)
+		if uStr == "" {
+			continue
+		}
 
-	// triggers the flow and returns the encoded response from the model
-	out, err := glowup.Run(ctx, Input{URL: *urlFlag, ContentType: *contentType})
-	if err != nil {
-		log.Fatalln(err)
-	}
+		fmt.Printf("Procesando: %s\n", uStr)
 
-	// decodes image data and returns the appropriate file extension
-	data, ext, err := decode(out)
-	if err != nil {
-		log.Fatalln(err)
-	}
+		// IMPORTANTE: usa 'uStr' aquí, no *urlFlag
+		out, err := glowup.Run(ctx, Input{URL: uStr, ContentType: *contentType})
+		if err != nil {
+			log.Printf("Error en flujo: %v", err)
+			continue
+		}
 
-	u, err := url.Parse(*urlFlag)
-	if err != nil {
-		log.Fatalf("error parsing url: %v", err)
-	}
+		data, ext, err := decode(out)
+		if err != nil {
+			log.Printf("Error decodificando: %v", err)
+			continue
+		}
 
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		log.Fatalf("error creating output directory: %v", err)
-	}
+		// 4. Parsea la URL usando 'uStr'
+		parsedURL, err := url.Parse(uStr)
+		if err != nil {
+			log.Printf("Error parseando URL: %v", err)
+			continue
+		}
 
-	// Obtener la base del nombre (ej: "foto.jpg" de "http://host/path/foto.jpg")
-	baseName := filepath.Base(u.Path)
+		// ... lógica de guardado ...
+		baseName := filepath.Base(parsedURL.Path)
+		nameWithoutExt := strings.TrimSuffix(baseName, filepath.Ext(baseName))
+		filename := filepath.Join(outputDir, fmt.Sprintf("%s-4k%s", nameWithoutExt, ext))
 
-	// Quitar la extensión original para añadir el sufijo
-	nameWithoutExt := strings.TrimSuffix(baseName, filepath.Ext(baseName))
-
-	// Crear el nuevo nombre: original + "-4k" + nueva extensión
-	filename := filepath.Join(outputDir, fmt.Sprintf("%s-4k%s", nameWithoutExt, ext))
-	// writes restored file to disk
-	if err := os.WriteFile(filename, data, 0644); err != nil {
-		log.Fatalln(err)
+		os.WriteFile(filename, data, 0644)
 	}
 }
 
