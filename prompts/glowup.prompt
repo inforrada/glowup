@@ -1,5 +1,5 @@
 ---
-model: vertexai/gemini-3-pro-image-preview
+model: vertexai/gemini-3-pro-image
 config:
   imageConfig:
     imageSize: "1K"
